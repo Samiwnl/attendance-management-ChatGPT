@@ -24,3 +24,14 @@ test('月全体の日付を返す：28日・29日・30日・31日', () => {
  }
  assert.deepEqual(monthDays(''),[]); assert.deepEqual(monthDays('2026-13'),[]);
 });
+test('過去日の追加・取消は重複せず元データを変更しない', async () => {
+ const {setAttendance} = await import('./attendance.js');
+ const original = [{day:'2026-11-01'}];
+ const added = setAttendance(original,'2026-11-02',true,start);
+ assert.equal(added.length,2);
+ assert.equal(setAttendance(added,'2026-11-02',true,start).length,2);
+ assert.deepEqual(setAttendance(added,'2026-11-01',false,start),[{day:'2026-11-02'}]);
+ assert.equal(original.length,1);
+ assert.throws(() => setAttendance(original,'2026-11-06',true,start));
+ assert.throws(() => setAttendance(original,'2026-02-30',true,start));
+});

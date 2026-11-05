@@ -12,3 +12,9 @@ export function monthDays(month) {
   const count = new Date(Date.UTC(year, number, 0)).getUTCDate();
   return Array.from({length:count}, (_, i) => `${month}-${String(i+1).padStart(2,'0')}`);
 }
+export function setAttendance(records, day, attended, now = Date.now()) {
+  const month = typeof day === 'string' ? day.slice(0,7) : '';
+  if (!monthDays(month).includes(day) || day > dayKey(now)) throw new Error('今日以前の有効な日付を選択してください。');
+  const next = records.filter(record => record.day !== day);
+  return attended ? [...next, {day}] : next;
+}

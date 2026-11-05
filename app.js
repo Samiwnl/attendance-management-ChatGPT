@@ -1,4 +1,4 @@
-import {dayKey,checkIn,monthDays} from './attendance.js';
+import {dayKey,checkIn,monthDays,setAttendance} from './attendance.js';
 const $ = id => document.getElementById(id);
 // Keep the original storage key: existing attendance dates remain available.
 const key = 'hibi-attendance-v1';
@@ -32,13 +32,12 @@ function renderToday() {
   $('status').classList.toggle('active', attended);
   $('in').disabled = !storageOk || attended;
   $('in').textContent = attended ? '✓ 本日の出勤を記録済み' : '↗ 出勤を記録する';
-  $('month-days').innerHTML = `${records.filter(r => r.day.startsWith(day.slice(0,7))).length}<span>日</span>`;
-  $('month-label').textContent = `${day.slice(0,7).replace('-','年')}月の記録`;
   if (previousDay !== day) { previousDay = day; renderCalendar(); }
 }
 function renderCalendar() {
   const month = $('month').value;
   const days = monthDays(month);
+  $('month-days').innerHTML = `${records.filter(r => r.day.startsWith(month)).length}<span>日</span>`;
   $('calendar').replaceChildren();
   $('calendar-title').textContent = days.length ? `${month.replace('-','年')}月` : '表示月を選択してください';
   if (!days.length) return;
@@ -52,9 +51,12 @@ function renderCalendar() {
   }
   for (const day of days) {
     const attended = dates.has(day);
-    const cell = document.createElement('div');
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.disabled = !storageOk || day > dayKey();
+    cell.onclick = () => editDay(day);
     cell.className = `calendar-day${attended ? ' attended' : ''}${day === dayKey() ? ' is-today' : ''}`;
-    cell.setAttribute('role','listitem');
+    cell.setAttribute('aria-pressed',String(attended));
     cell.setAttribute('aria-label', `${day} ${attended ? '出勤済み' : '記録なし'}`);
     if (day === dayKey()) cell.setAttribute('aria-current','date');
     const number = document.createElement('span');
@@ -73,6 +75,27 @@ function renderCalendar() {
     $('calendar').append(blank);
   }
 }
+let editingDay;
+function editDay(day) {
+  editingDay = day;
+  const attended = records.some(r => r.day === day);
+  $('edit-title').textContent = `${day.replaceAll('-',' / ')} の記録`;
+  $('edit-message').textContent = attended ? 'この日の出勤を取り消しますか？' : 'この日を出勤として記録しますか？';
+  $('save-edit').textContent = attended ? '出勤を取り消す' : '出勤を追加する';
+  $('edit-dialog').showModal();
+}
+$('save-edit').onclick = () => {
+  try {
+    const attended = records.some(r => r.day === editingDay);
+    const next = setAttendance(records, editingDay, !attended);
+    localStorage.setItem(key, JSON.stringify(next));
+    records = next;
+    $('edit-dialog').close();
+    renderToday();
+    renderCalendar();
+    notify(attended ? '出勤を取り消しました。' : '出勤を追加しました。');
+  } catch(e) { notify(e.message || '保存できませんでした。'); }
+};
 $('in').onclick = () => {
   try {
     const next = checkIn(records);
