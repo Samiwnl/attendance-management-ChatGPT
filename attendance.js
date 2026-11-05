@@ -1,32 +1,14 @@
 export function dayKey(time = Date.now()) {
   return new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Tokyo'}).format(new Date(time));
 }
-export function workMs(record, now = Date.now()) {
-  if (!record) return 0;
-  const end = record.end ?? now;
-  const pauses = record.breaks.reduce((sum,b) => sum + ((b.end ?? end) - b.start),0);
-  return Math.max(0,end - record.start - pauses);
+export function checkIn(records, now = Date.now()) {
+  const day = dayKey(now);
+  if (records.some(record => record.day === day)) throw new Error('本日はすでに出勤を記録しています。');
+  return [...records, {day}];
 }
-export function punch(records, action, now = Date.now()) {
-  const next = structuredClone(records);
-  const active = next.find(r => !r.end);
-  if(action === 'in') {
-    if(active || next.some(r => r.day === dayKey(now))) throw new Error('本日はすでに出勤を記録しています。');
-    next.push({day:dayKey(now),start:now,end:null,breaks:[]});
-  } else {
-    if(!active) throw new Error('先に出勤を打刻してください。');
-    const pause = active.breaks.find(b => !b.end);
-    if(action === 'break') {
-      if(pause) throw new Error('すでに休憩中です。');
-      active.breaks.push({start:now,end:null});
-    } else if(action === 'resume') {
-      if(!pause) throw new Error('休憩中ではありません。');
-      pause.end = now;
-    } else if(action === 'out') {
-      if(pause) pause.end = now;
-      active.end = now;
-    } else throw new Error('不明な操作です。');
-  }
-  return next;
+export function monthDays(month) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return [];
+  const [year, number] = month.split('-').map(Number);
+  const count = new Date(Date.UTC(year, number, 0)).getUTCDate();
+  return Array.from({length:count}, (_, i) => `${month}-${String(i+1).padStart(2,'0')}`);
 }
-export function duration(ms) {const m = Math.floor(ms/60000);return `${Math.floor(m/60)}時間${String(m%60).padStart(2,'0')}分`;}

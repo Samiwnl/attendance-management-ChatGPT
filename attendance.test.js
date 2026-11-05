@@ -1,8 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {punch,workMs,dayKey} from './attendance.js';
-const start=Date.parse('2026-11-05T00:00:00Z');
-test('出勤→休憩→復帰→退勤、休憩を除いた実働時間',()=>{let r=punch([],'in',start);r=punch(r,'break',start+3600000);r=punch(r,'resume',start+7200000);r=punch(r,'out',start+10800000);assert.equal(workMs(r[0]),7200000);assert.equal(r[0].end,start+10800000);});
-test('重複出勤・未出勤の退勤を防ぐ',()=>{assert.throws(()=>punch([],'out',start));const r=punch([],'in',start);assert.throws(()=>punch(r,'in',start));assert.throws(()=>punch(r,'resume',start));assert.equal(r[0].end,null);});
-test('休憩中の退勤で休憩を閉じる',()=>{let r=punch([],'in',start);r=punch(r,'break',start+3600000);r=punch(r,'out',start+7200000);assert.equal(workMs(r[0]),3600000);assert.equal(r[0].breaks[0].end,r[0].end);assert.throws(()=>punch(r,'in',start+8000000));});
-test('日付は日本時間、日を跨いだ勤務も退勤可能',()=>{assert.equal(dayKey(Date.parse('2026-11-04T16:00:00Z')),'2026-11-05');let r=punch([],'in',start);r=punch(r,'out',start+86400000);assert.equal(workMs(r[0]),86400000);});
+import {checkIn, dayKey, monthDays} from './attendance.js';
+const start = Date.parse('2026-11-05T00:00:00Z');
+test('出勤は日付のみ保存し、同日の重複を防ぐ', () => {
+ const records = checkIn([],start);
+ assert.deepEqual(records,[{day:'2026-11-05'}]);
+ assert.throws(() => checkIn(records,start+3600000));
+ assert.equal(checkIn(records,start+86400000).length,2);
+});
+test('旧形式の未退勤データが翌日の出勤を妨げない', () => {
+ const old = [{day:'2026-11-04',start:start-86400000,end:null,breaks:[]}];
+ assert.equal(checkIn(old,start).length,2);
+ assert.equal(old.length,1);
+});
+test('日本時間の日付境界', () => {
+ assert.equal(dayKey(Date.parse('2026-11-04T14:59:59Z')),'2026-11-04');
+ assert.equal(dayKey(Date.parse('2026-11-04T15:00:00Z')),'2026-11-05');
+});
+test('月全体の日付を返す：28日・29日・30日・31日', () => {
+ for (const [month,count] of [['2026-02',28],['2028-02',29],['2026-11',30],['2026-12',31]]) {
+  const days=monthDays(month); assert.equal(days.length,count);
+  assert.equal(days[0],`${month}-01`); assert.equal(days.at(-1),`${month}-${count}`);
+ }
+ assert.deepEqual(monthDays(''),[]); assert.deepEqual(monthDays('2026-13'),[]);
+});
